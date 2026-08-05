@@ -1,5 +1,4 @@
 import html
-import os
 from datetime import datetime
 
 import pandas as pd
@@ -58,10 +57,13 @@ def _initialize_session_state():
         "latest_public_url": "",
         "latest_uploaded_image_key": "",
         "last_send_results": [],
+        "last_send_show_banner": False,
         "current_contact_count": 0,
         "template_cache_sid": "",
         "template_cache": None,
         "template_error": "",
+        "template_send_in_progress": False,
+        "template_send_requested": False,
         "logged_in": False,
     }
 
@@ -128,7 +130,7 @@ def _inject_styles():
             padding: 0.4rem 1rem;
             box-shadow: 0 15px 35px rgba(2, 49, 42, 0.18);
             color: #ffffff;
-            margin-bottom: 0.25rem;
+            margin-bottom: 0.08rem;
             display: flex;
             flex-direction: row;
             justify-content: space-between;
@@ -472,6 +474,9 @@ def _inject_styles():
             font-size: 1rem;
             cursor: pointer;
             box-shadow: 0 8px 18px rgba(50, 56, 112, 0.10);
+        }
+        .stTabs {
+            margin-top: -0.15rem;
         }
         .stTabs [data-baseweb="tab-list"] {
             gap: 2.25rem;
@@ -899,7 +904,6 @@ def _render_inbox_tab():
         st.info(
             "Connect Supabase to activate the Inbox. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, then run database_schema.sql in Supabase."
         )
-        _render_inbox_setup_help()
         return
 
     refresh_column, hint_column = st.columns([0.9, 2.6], gap="small")
@@ -910,8 +914,6 @@ def _render_inbox_tab():
         st.caption(
             "If a recent WhatsApp reply is missing, refresh here and verify the webhook service is running."
         )
-
-    _render_inbox_setup_help()
 
     try:
         conversations = fetch_conversations()
@@ -941,39 +943,6 @@ def _render_inbox_tab():
 
     with contact_column:
         _render_contact_panel(selected_conversation, selected_messages)
-
-
-def _render_inbox_setup_help():
-    webhook_base_url = os.getenv("PUBLIC_WEBHOOK_BASE_URL", "").strip().rstrip("/")
-    incoming_webhook_url = (
-        f"{webhook_base_url}/webhook/whatsapp" if webhook_base_url else "https://your-domain/webhook/whatsapp"
-    )
-    status_webhook_url = (
-        f"{webhook_base_url}/webhook/whatsapp/status"
-        if webhook_base_url
-        else "https://your-domain/webhook/whatsapp/status"
-    )
-    supabase_ready = "Yes" if is_inbox_database_configured() else "No"
-    webhook_ready = "Configured" if webhook_base_url else "Add PUBLIC_WEBHOOK_BASE_URL to .env"
-
-    with st.expander("Inbox setup checklist", expanded=False):
-        st.markdown(
-            f"""
-            **Current status**
-
-            - Supabase connected: `{supabase_ready}`
-            - Public webhook base URL: `{webhook_ready}`
-
-            **Required for incoming chats to appear**
-
-            1. Run the FastAPI webhook server: `uvicorn api:app --host 0.0.0.0 --port 8000`
-            2. Expose that server on a public HTTPS URL.
-            3. In Twilio WhatsApp sandbox or sender configuration, set:
-               Incoming message webhook: `{incoming_webhook_url}`
-            4. Set message status callback URL: `{status_webhook_url}`
-            5. Keep this inbox open and click `Refresh Inbox` after a new reply arrives.
-            """
-        )
 
 
 def _select_conversation(conversations):
@@ -1319,19 +1288,30 @@ def _render_send_panel():
                 st.session_state.get("latest_public_url", ""),
             )
 
+        send_disabled = (
+            not uploaded_file
+            or not contacts
+            or not content_sid.strip()
+            or bool(template_error)
+            or st.session_state.get("template_send_in_progress", False)
+        )
+
         send_button = st.button(
             "Send WhatsApp Template",
             type="primary",
             use_container_width=True,
-            disabled=(
-                not uploaded_file
-                or not contacts
-                or not content_sid.strip()
-                or bool(template_error)
-            ),
+            disabled=send_disabled,
         )
 
-        if send_button:
+        if st.session_state.get("template_send_in_progress", False):
+            st.info("A WhatsApp template send is already in progress. Please wait for it to finish.")
+
+        if send_button and not st.session_state.get("template_send_in_progress", False):
+            st.session_state["template_send_in_progress"] = True
+            st.session_state["template_send_requested"] = True
+            st.rerun()
+
+        if st.session_state.get("template_send_requested", False):
             with st.spinner("Sending WhatsApp messages..."):
                 results = send_bulk_whatsapp_templates(
                     contacts,
@@ -1339,10 +1319,19 @@ def _render_send_panel():
                     variable_mappings,
                 )
             st.session_state["last_send_results"] = results
-            _render_send_results(results)
+            st.session_state["last_send_show_banner"] = True
+            st.session_state["template_send_requested"] = False
+            st.session_state["template_send_in_progress"] = False
+            st.rerun()
 
-        elif st.session_state.get("last_send_results"):
-            _render_send_results(st.session_state["last_send_results"], show_banner=False)
+        if st.session_state.get("last_send_results"):
+            show_banner = st.session_state.get("last_send_show_banner", False)
+            _render_send_results(
+                st.session_state["last_send_results"],
+                show_banner=show_banner,
+            )
+            if show_banner:
+                st.session_state["last_send_show_banner"] = False
 
 
 def _load_contacts(uploaded_file):
@@ -1621,6 +1610,7 @@ def _render_copyable_public_url(public_url):
         """,
         height=52,
     )
+
 
 
 def _render_login_page():
