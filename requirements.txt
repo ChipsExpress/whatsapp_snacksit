@@ -4,3 +4,6 @@ openpyxl
 python-dotenv
 twilio
 cloudinary
+fastapi
+uvicorn
+python-multipart
