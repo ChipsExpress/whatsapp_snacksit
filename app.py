@@ -1418,6 +1418,18 @@ def _render_send_panel():
                     language_code=template_lang,
                     header_image_url=header_url,
                 )
+            for res in results:
+                if res.get("success") and res.get("sid"):
+                    try:
+                        save_outbound_message(
+                            res.get("to"),
+                            f"Template: {template_to_send}",
+                            message_sid=res.get("sid"),
+                            status="sent",
+                        )
+                    except Exception:
+                        pass
+
             st.session_state["last_send_results"] = results
             st.session_state["last_send_show_banner"] = True
             st.session_state["template_send_requested"] = False

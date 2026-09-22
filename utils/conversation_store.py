@@ -78,7 +78,7 @@ def save_outbound_message(phone_number, body, message_sid="", status="queued"):
 
 
 def update_message_status(payload):
-    message_sid, status = _extract_status_details(payload)
+    message_sid, status, recipient_id, error_details = _extract_status_details(payload)
     if not message_sid or not status:
         return None
 
@@ -89,6 +89,22 @@ def update_message_status(payload):
         body={"status": status, "raw_payload": payload},
         prefer="return=representation",
     )
+    if not updated_rows and recipient_id:
+        conversation = _upsert_conversation(
+            phone_number=recipient_id,
+            customer_name="",
+            last_message=f"Status: {status}",
+            unread_increment=0,
+        )
+        return _insert_message(
+            conversation_id=conversation["id"],
+            phone_number=recipient_id,
+            direction="outbound",
+            body=f"[{status.upper()}]" + (f" Error: {error_details}" if error_details else ""),
+            message_sid=message_sid,
+            status=status,
+            raw_payload=payload,
+        )
     return updated_rows[0] if updated_rows else None
 
 
@@ -118,6 +134,8 @@ def _extract_inbound_details(payload):
 
 
 def _extract_status_details(payload):
+    recipient_id = ""
+    error_details = ""
     if isinstance(payload, dict):
         try:
             entry = payload.get("entry", [])[0]
@@ -126,13 +144,18 @@ def _extract_status_details(payload):
             statuses = value.get("statuses", [])
             if statuses:
                 st = statuses[0]
-                return st.get("id", ""), st.get("status", "")
+                recipient_id = st.get("recipient_id", "")
+                errors = st.get("errors", [])
+                if errors:
+                    err = errors[0]
+                    error_details = f"({err.get('code')}): {err.get('title', '')} - {err.get('message', '')}"
+                return st.get("id", ""), st.get("status", ""), recipient_id, error_details
         except Exception:
             pass
 
     message_sid = str(payload.get("MessageSid") or payload.get("SmsSid") or payload.get("id") or "").strip()
     status = str(payload.get("MessageStatus") or payload.get("SmsStatus") or payload.get("status") or "").strip()
-    return message_sid, status
+    return message_sid, status, recipient_id, error_details
 
 
 def fetch_conversations(limit=50):
