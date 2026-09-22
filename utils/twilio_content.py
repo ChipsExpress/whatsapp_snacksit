@@ -94,6 +94,10 @@ def fetch_content_template(content_sid):
             header_format = comp.get("format", "").upper()
             example_handles = comp.get("example", {}).get("header_handle", [])
             header_url = example_handles[0] if example_handles else ""
+            # Meta's internal CDN (scontent.whatsapp.net) gives HTTP 403 Forbidden to its own delivery bots.
+            # Fall back to the permanent Cloudinary-hosted Chips Express template banner.
+            if not header_url or "scontent.whatsapp.net" in header_url:
+                header_url = "https://res.cloudinary.com/ntgkmaw5/image/upload/v1790106878/whatsapp-templates/yi7eufghnyryh7iednqh.png"
             header_info = {
                 "format": header_format,
                 "url": header_url,

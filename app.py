@@ -1518,6 +1518,9 @@ def _render_template_details(template_details, available_contact_fields):
         unsafe_allow_html=True,
     )
 
+    if header_info.get("format") == "IMAGE" and header_info.get("url"):
+        st.image(header_info["url"], caption="Template Header Image", width=280)
+
     template_types = template_details.get("types", {})
     body_text = (
         template_types.get("twilio/text", {}).get("body")
