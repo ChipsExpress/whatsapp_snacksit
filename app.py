@@ -1408,7 +1408,8 @@ def _render_send_panel():
             )
             header_url = None
             if template_details and isinstance(template_details.get("header"), dict):
-                header_url = template_details["header"].get("url")
+                if template_details["header"].get("format") == "IMAGE":
+                    header_url = template_details["header"].get("url")
 
             with st.spinner("Sending WhatsApp messages..."):
                 results = send_bulk_whatsapp_templates(
