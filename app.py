@@ -1380,11 +1380,22 @@ def _render_send_panel():
             st.rerun()
 
         if st.session_state.get("template_send_requested", False):
+            template_to_send = (
+                template_details.get("friendly_name")
+                if template_details and template_details.get("friendly_name")
+                else content_sid.strip()
+            )
+            template_lang = (
+                template_details.get("language")
+                if template_details and template_details.get("language")
+                else "en"
+            )
             with st.spinner("Sending WhatsApp messages..."):
                 results = send_bulk_whatsapp_templates(
                     contacts,
-                    content_sid.strip(),
+                    template_to_send,
                     variable_mappings,
+                    language_code=template_lang,
                 )
             st.session_state["last_send_results"] = results
             st.session_state["last_send_show_banner"] = True

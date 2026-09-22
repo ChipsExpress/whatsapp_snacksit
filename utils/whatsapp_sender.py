@@ -15,7 +15,7 @@ WHATSAPP_BUSINESS_ACCOUNT_ID = os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID")
 META_API_VERSION = "v21.0"
 
 
-def send_whatsapp_template(to_number, content_sid, content_variables=None, language_code="en_US"):
+def send_whatsapp_template(to_number, content_sid, content_variables=None, language_code="en"):
     """Send one approved Meta WhatsApp template using WhatsApp Business Cloud API."""
     _validate_meta_config()
 
@@ -128,7 +128,7 @@ def send_whatsapp_text(to_number, body):
     }
 
 
-def send_bulk_whatsapp_templates(contacts, content_sid, variable_mappings=None):
+def send_bulk_whatsapp_templates(contacts, content_sid, variable_mappings=None, language_code="en"):
     """Send an approved template populated with each contact's details."""
     results = []
     variable_mappings = variable_mappings or {}
@@ -142,6 +142,7 @@ def send_bulk_whatsapp_templates(contacts, content_sid, variable_mappings=None):
                 to_number,
                 content_sid,
                 contact_variables,
+                language_code=language_code,
             )
             results.append(
                 {
@@ -218,9 +219,6 @@ def _validate_meta_config():
 
     if not WHATSAPP_PHONE_NUMBER_ID:
         missing_values.append("WHATSAPP_PHONE_NUMBER_ID")
-
-    if not WHATSAPP_BUSINESS_ACCOUNT_ID:
-        missing_values.append("WHATSAPP_BUSINESS_ACCOUNT_ID")
 
     if missing_values:
         raise ValueError(

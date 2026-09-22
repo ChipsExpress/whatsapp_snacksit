@@ -23,39 +23,48 @@ def fetch_content_template(content_sid):
     if not normalized_name:
         raise ValueError("Template name or ID is required.")
 
-    # Try fetching by name filter first
-    url = f"https://graph.facebook.com/{META_API_VERSION}/{WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates?name={quote(normalized_name)}"
-    
-    try:
-        response = _request_meta_json(url)
-        data = response.get("data", [])
-    except Exception:
-        data = []
-
-    # If not found by name parameter, fetch all templates and search
-    if not data:
-        url_all = f"https://graph.facebook.com/{META_API_VERSION}/{WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates"
-        response = _request_meta_json(url_all)
-        data = response.get("data", [])
-
     matched_template = None
-    for item in data:
-        if (
-            item.get("name", "").lower() == normalized_name.lower()
-            or item.get("id") == normalized_name
-        ):
-            matched_template = item
-            break
+
+    # 1. If content_sid looks like a direct numeric Meta Template ID, query it directly
+    if normalized_name.isdigit():
+        url_direct = f"https://graph.facebook.com/{META_API_VERSION}/{quote(normalized_name)}"
+        try:
+            direct_data = _request_meta_json(url_direct)
+            if isinstance(direct_data, dict) and direct_data.get("name") and "components" in direct_data:
+                matched_template = direct_data
+        except Exception:
+            pass
+
+    # 2. If not found by direct ID and WABA ID is configured, query WABA templates
+    if not matched_template and WHATSAPP_BUSINESS_ACCOUNT_ID:
+        url = f"https://graph.facebook.com/{META_API_VERSION}/{WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates?name={quote(normalized_name)}"
+        try:
+            response = _request_meta_json(url)
+            data = response.get("data", [])
+        except Exception:
+            data = []
+
+        if not data:
+            url_all = f"https://graph.facebook.com/{META_API_VERSION}/{WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates"
+            try:
+                response = _request_meta_json(url_all)
+                data = response.get("data", [])
+            except Exception:
+                data = []
+
+        for item in data:
+            if (
+                item.get("name", "").lower() == normalized_name.lower()
+                or item.get("id") == normalized_name
+            ):
+                matched_template = item
+                break
 
     if not matched_template:
-        if data and not normalized_name:
-            matched_template = data[0]
-        else:
-            available_names = ", ".join([t.get("name", "") for t in data[:5]]) if data else "none"
-            raise ValueError(
-                f"Template '{normalized_name}' not found in Meta WhatsApp account. "
-                f"Available templates: {available_names}"
-            )
+        raise ValueError(
+            f"Template '{normalized_name}' could not be fetched from Meta WhatsApp account. "
+            "Please verify that the Template Name or numeric ID is correct and approved in WhatsApp Manager."
+        )
 
     body_text = ""
     variables = {}
@@ -79,7 +88,7 @@ def fetch_content_template(content_sid):
     return {
         "sid": matched_template.get("name") or matched_template.get("id", normalized_name),
         "friendly_name": matched_template.get("name", normalized_name),
-        "language": matched_template.get("language", "en_US"),
+        "language": matched_template.get("language", "en"),
         "variables": variables,
         "types": {
             "whatsapp/text": {"body": body_text}
@@ -90,18 +99,8 @@ def fetch_content_template(content_sid):
 
 
 def _validate_meta_auth():
-    missing_values = []
-
-    if not WHATSAPP_BUSINESS_ACCOUNT_ID:
-        missing_values.append("WHATSAPP_BUSINESS_ACCOUNT_ID")
-
     if not WHATSAPP_ACCESS_TOKEN:
-        missing_values.append("WHATSAPP_ACCESS_TOKEN")
-
-    if missing_values:
-        raise ValueError(
-            "Missing Meta config value(s): " + ", ".join(missing_values)
-        )
+        raise ValueError("Missing Meta config value: WHATSAPP_ACCESS_TOKEN")
 
 
 def _request_meta_json(url):
