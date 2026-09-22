@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 from pathlib import Path
 from datetime import datetime, timezone
@@ -30,13 +30,11 @@ def is_configured():
 
 
 def save_inbound_message(payload):
-    phone_number = _clean_whatsapp_address(payload.get("From"))
-    body = str(payload.get("Body") or "").strip()
-    message_sid = str(payload.get("MessageSid") or "").strip()
-    profile_name = str(payload.get("ProfileName") or "").strip()
+    phone_number, body, message_sid, profile_name = _extract_inbound_details(payload)
+    phone_number = _clean_whatsapp_address(phone_number)
 
     if not phone_number:
-        raise ConversationStoreError("Twilio webhook did not include From.")
+        raise ConversationStoreError("WhatsApp webhook did not include phone number (From).")
 
     conversation = _upsert_conversation(
         phone_number=phone_number,
@@ -80,8 +78,7 @@ def save_outbound_message(phone_number, body, message_sid="", status="queued"):
 
 
 def update_message_status(payload):
-    message_sid = str(payload.get("MessageSid") or payload.get("SmsSid") or "").strip()
-    status = str(payload.get("MessageStatus") or payload.get("SmsStatus") or "").strip()
+    message_sid, status = _extract_status_details(payload)
     if not message_sid or not status:
         return None
 
@@ -93,6 +90,49 @@ def update_message_status(payload):
         prefer="return=representation",
     )
     return updated_rows[0] if updated_rows else None
+
+
+def _extract_inbound_details(payload):
+    if isinstance(payload, dict):
+        try:
+            entry = payload.get("entry", [])[0]
+            change = entry.get("changes", [])[0]
+            value = change.get("value", {})
+            messages = value.get("messages", [])
+            if messages:
+                msg = messages[0]
+                phone_number = msg.get("from", "")
+                body = msg.get("text", {}).get("body") or msg.get("caption") or ""
+                message_sid = msg.get("id", "")
+                contacts = value.get("contacts", [])
+                profile_name = contacts[0].get("profile", {}).get("name", "") if contacts else ""
+                return phone_number, body, message_sid, profile_name
+        except Exception:
+            pass
+
+    phone_number = payload.get("From") or payload.get("from") or payload.get("phone_number") or ""
+    body = str(payload.get("Body") or payload.get("body") or "").strip()
+    message_sid = str(payload.get("MessageSid") or payload.get("id") or "").strip()
+    profile_name = str(payload.get("ProfileName") or payload.get("profile_name") or "").strip()
+    return phone_number, body, message_sid, profile_name
+
+
+def _extract_status_details(payload):
+    if isinstance(payload, dict):
+        try:
+            entry = payload.get("entry", [])[0]
+            change = entry.get("changes", [])[0]
+            value = change.get("value", {})
+            statuses = value.get("statuses", [])
+            if statuses:
+                st = statuses[0]
+                return st.get("id", ""), st.get("status", "")
+        except Exception:
+            pass
+
+    message_sid = str(payload.get("MessageSid") or payload.get("SmsSid") or payload.get("id") or "").strip()
+    status = str(payload.get("MessageStatus") or payload.get("SmsStatus") or payload.get("status") or "").strip()
+    return message_sid, status
 
 
 def fetch_conversations(limit=50):

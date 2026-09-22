@@ -1,4 +1,6 @@
 .env
+Credentials.txt
+*.exe
 .venv/
 __pycache__/
 *.pyc

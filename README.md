@@ -1,4 +1,4 @@
-# WhatsApp Bulk Sender 🚀
+# SnacksIT WhatsApp Bulk Sender 🚀
 
 A powerful, user-friendly Streamlit web application designed to help you send bulk WhatsApp template messages using Twilio. It also integrates with Cloudinary to easily upload and attach media to your campaigns.
 
@@ -77,3 +77,5 @@ The Inbox needs all of the following:
 * `database_schema.sql` executed in Supabase
 * `api.py` running and reachable from Twilio over HTTPS
 * Twilio webhook URLs configured to point at that API
+
+* DEPLOY Api.py on Render (Free) 

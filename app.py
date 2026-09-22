@@ -1,4 +1,5 @@
 import html
+import os
 from datetime import datetime
 
 import pandas as pd
@@ -20,7 +21,7 @@ from utils.whatsapp_sender import send_bulk_whatsapp_templates, send_whatsapp_te
 
 
 st.set_page_config(
-    page_title="WhatsApp Bulk Sender",
+    page_title="SnacksIT WhatsApp Bulk Sender",
     page_icon="assets/logo.png",
     layout="wide",
 )
@@ -34,6 +35,10 @@ def main():
     if not st.session_state.get("logged_in", False):
         _render_login_page()
         return
+
+    if st.button("Logout", key="logout_btn"):
+        st.session_state["logged_in"] = False
+        st.rerun()
 
     dashboard_tab, inbox_tab = st.tabs(["Dashboard", "Inbox"])
 
@@ -105,10 +110,11 @@ def _inject_styles():
             overflow: hidden !important;
         }
         [data-testid="stVerticalBlockBorderWrapper"] {
-            border: none !important;
-            background: transparent !important;
-            box-shadow: none !important;
-            padding: 0 !important;
+            background: rgba(255, 255, 255, 0.95) !important;
+            border: 1px solid rgba(88, 95, 155, 0.12) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 10px 25px rgba(50, 56, 112, 0.05) !important;
+            padding: 1.25rem 1.5rem !important;
         }
         [data-testid="stHeader"],
         [data-testid="stToolbar"],
@@ -415,23 +421,44 @@ def _inject_styles():
             object-fit: contain;
             margin: 0 auto;
         }
-        div[data-testid="stTextInput"] input, div[data-testid="stSelectbox"] > div, div[data-testid="stSelectbox"] [data-baseweb="select"] > div {
+        /* Ensure visible, blinking cursor for all inputs & textareas */
+        input, textarea, [contenteditable="true"],
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stTextArea"] textarea,
+        div[data-testid="stNumberInput"] input,
+        [data-baseweb="input"] input,
+        [data-baseweb="textarea"] textarea {
+            caret-color: #075E54 !important;
+            color: #1d2142 !important;
+        }
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stTextArea"] textarea,
+        div[data-testid="stSelectbox"] > div,
+        div[data-testid="stSelectbox"] [data-baseweb="select"] > div {
             border-radius: 12px;
             background: #ffffff;
         }
-        div[data-testid="stTextInput"] label {
+        div[data-testid="stTextInput"] label,
+        div[data-testid="stTextArea"] label {
             color: #3a3f68 !important;
             font-weight: 600 !important;
         }
-        div[data-testid="stTextInput"] input {
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stTextArea"] textarea {
             color: #1d2142 !important;
             border: 1px solid rgba(111, 117, 166, 0.18);
         }
-        div[data-testid="stTextInput"] input:focus {
+        div[data-testid="stTextInput"] input:focus,
+        div[data-testid="stTextArea"] textarea:focus,
+        [data-baseweb="input"]:focus-within,
+        [data-baseweb="textarea"]:focus-within {
             border: 1px solid #25D366 !important;
-            box-shadow: 0 0 0 1px rgba(37, 211, 102, 0.15) !important;
+            box-shadow: 0 0 0 2px rgba(37, 211, 102, 0.20) !important;
+            outline: none !important;
+            caret-color: #075E54 !important;
         }
-        div[data-testid="stTextInput"] input:disabled {
+        div[data-testid="stTextInput"] input:disabled,
+        div[data-testid="stTextArea"] textarea:disabled {
             background: #f7f8fd !important;
             color: #5c6184 !important;
             -webkit-text-fill-color: #5c6184 !important;
@@ -493,6 +520,61 @@ def _inject_styles():
         }
         .stTabs [aria-selected="true"] {
             color: #075E54 !important;
+        }
+        div[data-testid="stElementContainer"]:has(.st-key-logout_btn),
+        div.st-key-logout_btn {
+            position: relative !important;
+            height: 0px !important;
+            min-height: 0px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            z-index: 100 !important;
+        }
+        div.st-key-logout_btn button {
+            position: absolute !important;
+            right: 6px !important;
+            top: 6px !important;
+            height: 42px !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #fb2f33 !important;
+            font-size: 0.86rem !important;
+            font-weight: 700 !important;
+            padding: 0 0.25rem !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+            min-height: auto !important;
+            line-height: 42px !important;
+            text-decoration: none !important;
+            outline: none !important;
+        }
+        div.st-key-logout_btn button:hover {
+            background: transparent !important;
+            color: #d92529 !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+        div.st-key-logout_btn button:focus,
+        div.st-key-logout_btn button:active {
+            background: transparent !important;
+            color: #fb2f33 !important;
+            box-shadow: none !important;
+            border: none !important;
+            outline: none !important;
+        }
+        div.st-key-logout_btn button p {
+            color: #fb2f33 !important;
+            font-size: 0.86rem !important;
+            font-weight: 700 !important;
+            margin: 0 !important;
+            font-family: inherit !important;
+        }
+        div.st-key-logout_btn button:hover p {
+            color: #d92529 !important;
         }
         .inbox-shell {
             display: flex;
@@ -805,7 +887,7 @@ def _render_header():
                 width: 100%;
             "></div>
             <div style="padding: 0.45rem 1rem; display: flex; justify-content: center; align-items: center;">
-                <div class="hero-title">WhatsApp Bulk Sender</div>
+                <div class="hero-title">SnacksIT WhatsApp Bulk Sender</div>
             </div>
         </div>
         """,
@@ -881,23 +963,7 @@ def _render_stats_overview():
 
 
 def _render_dashboard():
-    st.markdown(
-        """
-        <div class="panel-card">
-            <div class="panel-title">Dashboard Overview</div>
-            <div class="panel-subtitle">Manage links, templates, and send WhatsApp messages cleanly.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    media_column, send_column = st.columns([1.15, 1], gap="large")
-
-    with media_column:
-        _render_cloudinary_panel()
-
-    with send_column:
-        _render_send_panel()
+    _render_send_panel()
 
 def _render_inbox_tab():
     if not is_inbox_database_configured():
@@ -1009,7 +1075,7 @@ def _render_conversation_list(conversations, selected_conversation):
             """
             <div class="empty-state">
                 <strong>No conversations yet</strong>
-                <span>Incoming WhatsApp replies will appear here once Twilio is connected.</span>
+                <span>Incoming WhatsApp replies will appear here once WhatsApp Webhook is connected.</span>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1236,31 +1302,34 @@ def _render_cloudinary_panel():
 
 
 def _render_send_panel():
-    st.markdown(
-        """
-        <div class="section-card">
-            <div class="panel-title">Send WhatsApp Messages</div>
-            <div class="panel-subtitle">Upload contacts, review the approved Twilio template, and send only compliant content.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    with st.container(border=True):
+        st.markdown(
+            """
+            <div style="margin-bottom: 0.8rem;">
+                <div class="panel-title">Send WhatsApp Messages</div>
+                <div class="panel-subtitle">Upload contacts, review the approved WhatsApp template, and send only compliant content.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    with st.container(border=False):
-        uploaded_file = st.file_uploader(
-            "Upload Excel file *",
-            type=["xlsx"],
-            help=(
-                "Required columns: countryco and PhoneNumber. Optional columns: firstname, lastname, and any template-specific fields."
-            ),
-            key="contacts_file",
-        )
-        content_sid = st.text_input(
-            "Twilio Content SID *",
-            placeholder="HX1234567890abcdef...",
-            help="Paste the approved Twilio Content SID that starts with HX.",
-            key="content_sid_input",
-        )
+        col_excel, col_template = st.columns([1, 1], gap="large")
+        with col_excel:
+            uploaded_file = st.file_uploader(
+                "Upload Excel file *",
+                type=["xlsx"],
+                help=(
+                    "Required columns: countryco and PhoneNumber. Optional columns: firstname, lastname, and template fields."
+                ),
+                key="contacts_file",
+            )
+        with col_template:
+            content_sid = st.text_input(
+                "WhatsApp Template Name or ID *",
+                placeholder="e.g. hello_world",
+                help="Enter the approved Meta WhatsApp template name or ID.",
+                key="content_sid_input",
+            )
 
         contacts = _load_contacts(uploaded_file)
         template_details, template_error = _load_template_details(content_sid)
@@ -1285,7 +1354,6 @@ def _render_send_panel():
             variable_mappings = _render_template_details(
                 template_details,
                 available_contact_fields,
-                st.session_state.get("latest_public_url", ""),
             )
 
         send_disabled = (
@@ -1392,7 +1460,7 @@ def _render_status_hints(uploaded_file, content_sid, template_error):
         st.error(template_error)
 
 
-def _render_template_details(template_details, available_contact_fields, latest_public_url):
+def _render_template_details(template_details, available_contact_fields):
     friendly_name = template_details.get("friendly_name") or "Untitled template"
     language = template_details.get("language") or "unknown"
     st.markdown(
@@ -1416,9 +1484,9 @@ def _render_template_details(template_details, available_contact_fields, latest_
     if body_text:
         st.code(body_text, language="text")
 
-    # Auto-build mappings using each variable's Twilio template default value.
+    # Auto-build mappings using each variable's template default value.
     # _build_content_variables falls back to default_value when source_type is "default",
-    # so Twilio receives properly populated ContentVariables without needing user input.
+    # so Meta receives properly populated template variables without needing user input.
     template_variables = template_details.get("variables", {})
     variable_mappings = {}
     for variable_key, default_value in template_variables.items():
@@ -1445,9 +1513,9 @@ def _render_send_results(results, show_banner=True):
     for error in unique_errors:
         st.error(error)
 
-    if any("21656" in error for error in unique_errors):
+    if any("132001" in error or "132000" in error for error in unique_errors):
         st.info(
-            "Twilio 21656 means the ContentVariables payload is invalid. Blank values are skipped, line breaks are sanitized, and every mapped variable should match your approved template."
+            "Meta Template error: Please verify that the template name exists, is approved, and that all variable parameters match your Meta template definition."
         )
 
 
@@ -1669,6 +1737,7 @@ def _render_login_page():
             background: #ffffff !important;
             color: #1d2142 !important;
             -webkit-text-fill-color: #1d2142 !important;
+            caret-color: #075E54 !important;
         }
         div[data-testid="stForm"] div[data-testid="stTextInput"] > div[data-baseweb="input"] {
             border-radius: 10px !important;
@@ -1775,7 +1844,9 @@ def _render_login_page():
             submit = st.form_submit_button("Login", use_container_width=True)
 
             if submit:
-                if username == "Chips_Express" and password == "Chips@123!":
+                target_username = os.getenv("APP_USERNAME", "Chips11_Express")
+                target_password = os.getenv("APP_PASSWORD", "Pmcdok@123")
+                if username == target_username and password == target_password:
                     st.session_state["logged_in"] = True
                     st.rerun()
                 else:
