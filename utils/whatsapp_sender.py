@@ -15,9 +15,29 @@ WHATSAPP_BUSINESS_ACCOUNT_ID = os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID")
 META_API_VERSION = "v21.0"
 
 
-def send_whatsapp_template(to_number, content_sid, content_variables=None, language_code="en"):
+def _get_meta_config():
+    token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+    phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            token = token or st.secrets.get("WHATSAPP_ACCESS_TOKEN", "")
+            phone_id = phone_id or st.secrets.get("WHATSAPP_PHONE_NUMBER_ID", "")
+    except Exception:
+        pass
+    return (token or "").strip(), (phone_id or "").strip()
+
+
+def send_whatsapp_template(
+    to_number,
+    content_sid,
+    content_variables=None,
+    language_code="en",
+    header_image_url=None,
+):
     """Send one approved Meta WhatsApp template using WhatsApp Business Cloud API."""
-    _validate_meta_config()
+    token, phone_id = _get_meta_config()
+    _validate_meta_config(token, phone_id)
 
     if not to_number:
         raise ValueError("Recipient WhatsApp number is required.")
@@ -35,11 +55,11 @@ def send_whatsapp_template(to_number, content_sid, content_variables=None, langu
         }
     }
 
-    if content_variables:
-        components = []
-        body_params = []
-        header_params = []
+    components = []
+    body_params = []
+    header_params = []
 
+    if content_variables:
         # Sort keys numerically if possible, otherwise string sort
         sorted_keys = sorted(
             content_variables.keys(),
@@ -60,19 +80,25 @@ def send_whatsapp_template(to_number, content_sid, content_variables=None, langu
                     "text": val
                 })
 
-        if header_params:
-            components.append({
-                "type": "header",
-                "parameters": header_params
-            })
-        if body_params:
-            components.append({
-                "type": "body",
-                "parameters": body_params
-            })
+    if header_image_url and not header_params:
+        header_params.append({
+            "type": "image",
+            "image": {"link": header_image_url}
+        })
 
-        if components:
-            template_payload["components"] = components
+    if header_params:
+        components.append({
+            "type": "header",
+            "parameters": header_params
+        })
+    if body_params:
+        components.append({
+            "type": "body",
+            "parameters": body_params
+        })
+
+    if components:
+        template_payload["components"] = components
 
     payload = {
         "messaging_product": "whatsapp",
@@ -82,7 +108,7 @@ def send_whatsapp_template(to_number, content_sid, content_variables=None, langu
         "template": template_payload,
     }
 
-    response_data = _send_meta_request(payload)
+    response_data = _send_meta_request(payload, token, phone_id)
     messages = response_data.get("messages", [])
     msg_id = messages[0].get("id") if messages else ""
 
@@ -95,7 +121,8 @@ def send_whatsapp_template(to_number, content_sid, content_variables=None, langu
 
 def send_whatsapp_text(to_number, body):
     """Send a free-form WhatsApp message using Meta Cloud API inside customer service window."""
-    _validate_meta_config()
+    token, phone_id = _get_meta_config()
+    _validate_meta_config(token, phone_id)
 
     if not to_number:
         raise ValueError("Recipient WhatsApp number is required.")
@@ -117,7 +144,7 @@ def send_whatsapp_text(to_number, body):
         }
     }
 
-    response_data = _send_meta_request(payload)
+    response_data = _send_meta_request(payload, token, phone_id)
     messages = response_data.get("messages", [])
     msg_id = messages[0].get("id") if messages else ""
 
@@ -128,7 +155,13 @@ def send_whatsapp_text(to_number, body):
     }
 
 
-def send_bulk_whatsapp_templates(contacts, content_sid, variable_mappings=None, language_code="en"):
+def send_bulk_whatsapp_templates(
+    contacts,
+    content_sid,
+    variable_mappings=None,
+    language_code="en",
+    header_image_url=None,
+):
     """Send an approved template populated with each contact's details."""
     results = []
     variable_mappings = variable_mappings or {}
@@ -143,6 +176,7 @@ def send_bulk_whatsapp_templates(contacts, content_sid, variable_mappings=None, 
                 content_sid,
                 contact_variables,
                 language_code=language_code,
+                header_image_url=header_image_url,
             )
             results.append(
                 {
@@ -211,13 +245,13 @@ def _sanitize_content_variable_value(value):
     return sanitized_value.strip()
 
 
-def _validate_meta_config():
+def _validate_meta_config(token=None, phone_id=None):
     missing_values = []
 
-    if not WHATSAPP_ACCESS_TOKEN:
+    if not token:
         missing_values.append("WHATSAPP_ACCESS_TOKEN")
 
-    if not WHATSAPP_PHONE_NUMBER_ID:
+    if not phone_id:
         missing_values.append("WHATSAPP_PHONE_NUMBER_ID")
 
     if missing_values:
@@ -234,11 +268,11 @@ def _clean_phone_number(phone_number):
     return clean
 
 
-def _send_meta_request(payload):
-    url = f"https://graph.facebook.com/{META_API_VERSION}/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+def _send_meta_request(payload, token, phone_id):
+    url = f"https://graph.facebook.com/{META_API_VERSION}/{phone_id}/messages"
     data = json.dumps(payload).encode("utf-8")
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
 

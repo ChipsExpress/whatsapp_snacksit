@@ -9,15 +9,32 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-WHATSAPP_BUSINESS_ACCOUNT_ID = os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID")
-WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
-
 META_API_VERSION = "v21.0"
+
+
+def _get_meta_config():
+    token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+    waba_id = os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID", "")
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            token = token or st.secrets.get("WHATSAPP_ACCESS_TOKEN", "")
+            waba_id = waba_id or st.secrets.get("WHATSAPP_BUSINESS_ACCOUNT_ID", "")
+    except Exception:
+        pass
+    token = (token or "").strip()
+    waba_id = (waba_id or "").strip()
+    # Correct known typo where '103988149744623' was missing the digit 9 (should be '1093988149744623')
+    if waba_id in ("103988149744623", ""):
+        waba_id = "1093988149744623"
+    return token, waba_id
 
 
 def fetch_content_template(content_sid):
     """Fetch one Meta WhatsApp Content template so the UI can map variables safely."""
-    _validate_meta_auth()
+    token, waba_id = _get_meta_config()
+    if not token:
+        raise ValueError("Missing Meta config value: WHATSAPP_ACCESS_TOKEN")
 
     normalized_name = str(content_sid).strip()
     if not normalized_name:
@@ -29,25 +46,25 @@ def fetch_content_template(content_sid):
     if normalized_name.isdigit():
         url_direct = f"https://graph.facebook.com/{META_API_VERSION}/{quote(normalized_name)}"
         try:
-            direct_data = _request_meta_json(url_direct)
+            direct_data = _request_meta_json(url_direct, token)
             if isinstance(direct_data, dict) and direct_data.get("name") and "components" in direct_data:
                 matched_template = direct_data
         except Exception:
             pass
 
-    # 2. If not found by direct ID and WABA ID is configured, query WABA templates
-    if not matched_template and WHATSAPP_BUSINESS_ACCOUNT_ID:
-        url = f"https://graph.facebook.com/{META_API_VERSION}/{WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates?name={quote(normalized_name)}"
+    # 2. Query WABA message_templates if not found by direct ID
+    if not matched_template and waba_id:
+        url_by_name = f"https://graph.facebook.com/{META_API_VERSION}/{waba_id}/message_templates?name={quote(normalized_name)}"
         try:
-            response = _request_meta_json(url)
+            response = _request_meta_json(url_by_name, token)
             data = response.get("data", [])
         except Exception:
             data = []
 
         if not data:
-            url_all = f"https://graph.facebook.com/{META_API_VERSION}/{WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates"
+            url_all = f"https://graph.facebook.com/{META_API_VERSION}/{waba_id}/message_templates"
             try:
-                response = _request_meta_json(url_all)
+                response = _request_meta_json(url_all, token)
                 data = response.get("data", [])
             except Exception:
                 data = []
@@ -68,11 +85,20 @@ def fetch_content_template(content_sid):
 
     body_text = ""
     variables = {}
+    header_info = {}
     components = matched_template.get("components", [])
 
     for comp in components:
         comp_type = str(comp.get("type", "")).upper()
-        if comp_type == "BODY":
+        if comp_type == "HEADER":
+            header_format = comp.get("format", "").upper()
+            example_handles = comp.get("example", {}).get("header_handle", [])
+            header_url = example_handles[0] if example_handles else ""
+            header_info = {
+                "format": header_format,
+                "url": header_url,
+            }
+        elif comp_type == "BODY":
             body_text = comp.get("text", "")
             # Extract placeholders like {{1}}, {{2}}
             var_matches = re.findall(r"\{\{(\d+)\}\}", body_text)
@@ -95,20 +121,16 @@ def fetch_content_template(content_sid):
         },
         "status": matched_template.get("status", "APPROVED"),
         "category": matched_template.get("category", ""),
+        "header": header_info,
     }
 
 
-def _validate_meta_auth():
-    if not WHATSAPP_ACCESS_TOKEN:
-        raise ValueError("Missing Meta config value: WHATSAPP_ACCESS_TOKEN")
-
-
-def _request_meta_json(url):
+def _request_meta_json(url, token):
     request = Request(
         url,
         headers={
             "Accept": "application/json",
-            "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+            "Authorization": f"Bearer {token}",
         },
         method="GET",
     )
@@ -138,3 +160,4 @@ def _extract_error_message(response_body):
         return response_body.strip()
 
     return ""
+

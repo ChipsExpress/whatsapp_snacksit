@@ -1406,12 +1406,17 @@ def _render_send_panel():
                 if template_details and template_details.get("language")
                 else "en"
             )
+            header_url = None
+            if template_details and isinstance(template_details.get("header"), dict):
+                header_url = template_details["header"].get("url")
+
             with st.spinner("Sending WhatsApp messages..."):
                 results = send_bulk_whatsapp_templates(
                     contacts,
                     template_to_send,
                     variable_mappings,
                     language_code=template_lang,
+                    header_image_url=header_url,
                 )
             st.session_state["last_send_results"] = results
             st.session_state["last_send_show_banner"] = True
@@ -1458,14 +1463,11 @@ def _load_template_details(content_sid):
 
     if (
         normalized_sid == st.session_state.get("template_cache_sid")
-        and (
-            st.session_state.get("template_cache") is not None
-            or st.session_state.get("template_error")
-        )
+        and st.session_state.get("template_cache") is not None
     ):
         return (
             st.session_state.get("template_cache"),
-            st.session_state.get("template_error", ""),
+            "",
         )
 
     try:
@@ -1490,12 +1492,15 @@ def _render_status_hints(uploaded_file, content_sid, template_error):
 def _render_template_details(template_details, available_contact_fields):
     friendly_name = template_details.get("friendly_name") or "Untitled template"
     language = template_details.get("language") or "unknown"
+    header_info = template_details.get("header") or {}
+    header_pill = f'<span class="status-pill">Header: {header_info.get("format")}</span>' if header_info.get("format") else ""
     st.markdown(
         f"""
         <div class="template-shell">
             <span class="status-pill">Template: {friendly_name}</span>
             <span class="status-pill">SID: {template_details.get("sid", "")}</span>
             <span class="status-pill">Language: {language}</span>
+            {header_pill}
         </div>
         """,
         unsafe_allow_html=True,
