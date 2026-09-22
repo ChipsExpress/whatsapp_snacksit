@@ -511,19 +511,30 @@ def _inject_styles():
             border-bottom: 1px solid rgba(111, 117, 166, 0.12);
             margin-bottom: 0.65rem;
         }
-        .stTabs [data-baseweb="tab"] {
+        .stTabs [data-baseweb="tab"],
+        .stTabs [data-baseweb="tab"] p {
             height: 42px;
             padding: 0 0.25rem;
-            color: #4b516f;
-            font-size: 0.86rem;
-            font-weight: 700;
+            color: #383c56 !important;
+            font-size: 0.88rem !important;
+            font-weight: 700 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
         }
-        .stTabs [aria-selected="true"] {
+        .stTabs [data-baseweb="tab"]:hover,
+        .stTabs [data-baseweb="tab"]:hover p {
             color: #075E54 !important;
+        }
+        .stTabs [aria-selected="true"],
+        .stTabs [aria-selected="true"] p {
+            color: #075E54 !important;
+            font-weight: 800 !important;
         }
         div[data-testid="stElementContainer"]:has(.st-key-logout_btn),
         div.st-key-logout_btn {
             position: relative !important;
+            width: 100% !important;
+            max-width: 100% !important;
             height: 0px !important;
             min-height: 0px !important;
             margin: 0 !important;
@@ -536,6 +547,9 @@ def _inject_styles():
             right: 6px !important;
             top: 6px !important;
             height: 42px !important;
+            width: auto !important;
+            min-width: 70px !important;
+            white-space: nowrap !important;
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
@@ -570,8 +584,10 @@ def _inject_styles():
             color: #fb2f33 !important;
             font-size: 0.86rem !important;
             font-weight: 700 !important;
+            white-space: nowrap !important;
             margin: 0 !important;
             font-family: inherit !important;
+            display: inline-block !important;
         }
         div.st-key-logout_btn button:hover p {
             color: #d92529 !important;
